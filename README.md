@@ -275,11 +275,11 @@ Contribuições são bem-vindas! Areas de melhoria:
 Este projeto é desenvolvido para fins educacionais e de pesquisa. Desenvolvido como parte do curso de Inteligência Artificial.
 
 ## 👥 Autores
-**Yhassine Diogo Carlos**
-**Bernardo Simone**
-**Usseno Bazima**
-**Robson Soares** 
-**UEM** - *Caso de uso e requisitos*
+- **Yhassine Diogo Carlos**
+- **Bernardo Simone**
+- **Usseno Bazima**
+- **Robson Soares** 
+- **UEM** - *Caso de uso e requisitos*
 
 ---
 
