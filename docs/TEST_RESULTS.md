@@ -60,7 +60,7 @@ Neste cenário, com voo em altura elevada e vento moderado, A* e UCS completaram
 
 **Visualização da Rota:**
 
-![Rota Cenário 2 - A_UCS](Teste_#002-v.gif)
+![Rota Cenário 2 - A_UCS](Teste_002_v.gif)
 
 ---
 
