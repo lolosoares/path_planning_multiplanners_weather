@@ -1,106 +1,89 @@
 import time
+import sys
 
 class IDS:
     def __init__(self, env):
         self.env = env
         self.agent_dict = env.agent_dict
+        self.max_depth_map = {
+            (10, 10): 100,
+            (20, 20): 50,
+            (50, 50): 30,
+            (100, 100): 20
+        }
     
     def search(self, agent_name):
+        print(f"🟩 IDS iniciando busca...")
         start_time = time.time()
         
         start = self.agent_dict[agent_name]["start"]
-        initial_battery = self.agent_dict[agent_name]["battery"]
+        goal = self.agent_dict[agent_name]["goal"]
         
-        print(f"🟩 IDS planejando missão completa...")
+        rows, cols = self.env.rows, self.env.cols
+        max_depth = 30
         
-        # Planejar missão completa
-        full_mission_path = self.plan_complete_mission(agent_name, start, initial_battery)
+        for (max_rows, max_cols), depth in self.max_depth_map.items():
+            if rows <= max_rows and cols <= max_cols:
+                max_depth = depth
+                break
         
-        computation_time = time.time() - start_time
+        print(f"   Mapa: {rows}x{cols}, Limite IDS: {max_depth}")
         
-        if full_mission_path:
-            print(f"✅ IDS MISSÃO COMPLETA: {len(full_mission_path)} passos totais")
-            return full_mission_path
-        else:
-            print(f"❌ IDS FALHOU: Missão não planejável")
-            return []
-
-    def plan_complete_mission(self, agent_name, start, initial_battery):
-        """Planeja missão completa com IDS"""
-        mission_path = []
-        current_position = start
-        current_battery = initial_battery
-        
-        # FASE 1: Ida para entrega
-        print("   FASE 1: Indo para entrega (IDS)...")
-        delivery_goal = self.agent_dict[agent_name]["goal"]
-        outbound_path = self.find_path_ids(current_position, delivery_goal, agent_name)
-        
-        if not outbound_path:
-            print("   ❌ IDS: Não foi possível planejar ida para entrega")
-            return []
-        
-        mission_path.extend(outbound_path[1:])
-        
-        # Atualizar bateria estimada após ida
-        current_battery -= len(outbound_path) * 0.8  # Estimativa simplificada
-        current_position = delivery_goal
-        
-        print(f"   ✅ IDS Chegou na entrega. Bateria estimada: {current_battery:.1f}%")
-        
-        # FASE 2: Entrega (pausa)
-        print("   FASE 2: Realizando entrega...")
-        delivery_steps = [current_position] * 3
-        mission_path.extend(delivery_steps)
-        
-        # FASE 3: Volta para base
-        print("   FASE 3: Voltando para base (IDS)...")
-        home_base = self.agent_dict[agent_name]["home_base"]
-        inbound_path = self.find_path_ids(current_position, home_base, agent_name)
-        
-        if not inbound_path:
-            print("   ❌ IDS: Não foi possível planejar volta para base")
-            return []
-        
-        mission_path.extend(inbound_path[1:])
-        current_position = home_base
-        
-        # FASE 4: Repouso (pausa)
-        print("   FASE 4: Repousando na base...")
-        rest_steps = [current_position] * 5
-        mission_path.extend(rest_steps)
-        
-        return mission_path
-
-    def find_path_ids(self, start, goal, agent_name):
-        """Encontra caminho com IDS (Profundidade Iterativa)"""
         depth = 0
-        max_depth = 200  # Aumentado para missões mais longas
+        nodes_explored = 0
         
         while depth < max_depth:
-            result = self.depth_limited_search(start, goal, depth, agent_name, [], set())
+            # IDS busca SOMENTE ida para entrega (sem bateria/custo)
+            result, nodes = self.depth_limited_search(start, goal, depth, agent_name, [], set(), 0)
+            nodes_explored += nodes
+            
             if result is not None:
-                return result
+                # O IDS retorna apenas o caminho de ida (Path Finding Simples)
+                computation_time = time.time() - start_time
+                print(f"✅ IDS SUCESSO: Caminho de ida encontrado em {len(result)} passos")
+                print(f"   Nós Explorados: {nodes_explored}")
+                print(f"   Tempo de Execução (Planejamento): {computation_time:.4f}s")
+                
+                # Para uma missão COMPLETA, o código externo deve planejar a volta.
+                # Retornamos o caminho de ida, que é o máximo que o IDS simples pode fazer.
+                return result 
+            
             depth += 1
+            if depth % 5 == 0:
+                print(f"   IDS: Profundidade {depth}, {nodes_explored} nós explorados...")
+                
+            if time.time() - start_time > 30:
+                print(f"❌ IDS: TIMEOUT após 30 segundos")
+                return []
         
+        computation_time = time.time() - start_time
+        print(f"❌ IDS: Limite de profundidade {max_depth} atingido")
+        print(f"   Nós Explorados: {nodes_explored}")
         return []
-
-    def depth_limited_search(self, current, goal, depth, agent_name, path, visited):
+    
+    def depth_limited_search(self, current, goal, depth, agent_name, path, visited, nodes_count):
+        nodes_count += 1
+        
+        if nodes_count > 100000:
+            return None, nodes_count
+            
         if current == goal:
-            return path + [current]
+            return path + [current], nodes_count
         
         if depth <= 0:
-            return None
+            return None, nodes_count
         
         visited.add(current)
         
-        # IDS usa bateria máxima para simplificar
-        neighbors = self.env.get_neighbors(current, 100.0)
+        # O IDS simples ignora a bateria, assume 100%
+        neighbors = self.env.get_neighbors(current, 100.0) 
         
         for neighbor in neighbors:
             if neighbor not in visited:
-                result = self.depth_limited_search(neighbor, goal, depth-1, agent_name, path + [current], visited.copy())
+                result, nodes_count = self.depth_limited_search(
+                    neighbor, goal, depth-1, agent_name, path + [current], visited.copy(), nodes_count
+                )
                 if result is not None:
-                    return result
+                    return result, nodes_count
         
-        return None
+        return None, nodes_count

@@ -5,6 +5,8 @@ class UCS:
     def __init__(self, env):
         self.env = env
         self.agent_dict = env.agent_dict
+        self.total_cost = 0.0
+        self.total_nodes_explored = 0
     
     def search(self, agent_name):
         start_time = time.time()
@@ -14,40 +16,60 @@ class UCS:
         
         print(f"🟦 UCS planejando missão completa...")
         
-        # Planejar missão completa
         full_mission_path = self.plan_complete_mission(agent_name, start, initial_battery)
         
         computation_time = time.time() - start_time
         
         if full_mission_path:
-            print(f"✅ UCS MISSÃO COMPLETA: {len(full_mission_path)} passos totais")
+            print(f"✅ UCS MISSÃO CONCLUÍDA: {len(full_mission_path)} passos totais")
+            print(f"   Custo Total da Missão (g(n)): {self.total_cost:.2f}")
+            print(f"   Nós Explorados: {self.total_nodes_explored}")
+            print(f"   Tempo de Execução (Planejamento): {computation_time:.4f}s")
             return full_mission_path
         else:
             print(f"❌ UCS FALHOU: Missão não planejável")
             return []
 
     def plan_complete_mission(self, agent_name, start, initial_battery):
-        """Planeja missão completa com UCS"""
         mission_path = []
         current_position = start
         current_battery = initial_battery
+        self.total_cost = 0.0
+        self.total_nodes_explored = 0
         
         # FASE 1: Ida para entrega
         print("   FASE 1: Indo para entrega (UCS)...")
         delivery_goal = self.agent_dict[agent_name]["goal"]
-        outbound_path = self.find_path_ucs(current_position, delivery_goal, current_battery, agent_name)
         
-        if not outbound_path:
-            print("   ❌ UCS: Não foi possível planejar ida para entrega")
+        result = self.find_path_ucs(current_position, delivery_goal, current_battery, agent_name)
+        
+        if not result:
+            # 2. A busca falhou. Tenta novamente com Bateria Infinita (ignore_battery=True)
+            print("   ❌ Busca falhou com restrição de bateria. Re-testando viabilidade de caminho...")
+            
+            viability_result = self.find_path(current_position, delivery_goal, current_battery, agent_name, ignore_battery=True)
+            
+            if viability_result:
+                # 3. Sucesso no modo Bateria Infinita
+                print("   ⚠️ DIAGNÓSTICO: Caminho existe, mas é inviável por falta de bateria (Outbound).")
+            else:
+                # 4. Falha no modo Bateria Infinita
+                print("   💀 DIAGNÓSTICO: Caminho está BLOQUEADO (Obstáculos ou Mapa Desconectado).")
+                
+            print("   ❌ Não foi possível planejar ida para entrega")
             return []
+            
+        outbound_path, outbound_cost, nodes_exp_out = result
+        self.total_cost += outbound_cost
+        self.total_nodes_explored += nodes_exp_out
         
         mission_path.extend(outbound_path[1:])
         
         # Atualizar bateria após ida
-        for i in range(1, len(outbound_path)):
-            move_cost = self.env.calculate_move_cost(outbound_path[i-1], outbound_path[i], current_battery)
-            current_battery -= move_cost
         current_position = delivery_goal
+        current_battery -= outbound_cost # Simplificado: o custo é igual à bateria consumida
+        
+        delivery_time_steps = len(outbound_path) - 1
         
         print(f"   ✅ UCS Chegou na entrega. Bateria: {current_battery:.1f}%")
         
@@ -55,15 +77,34 @@ class UCS:
         print("   FASE 2: Realizando entrega...")
         delivery_steps = [current_position] * 3
         mission_path.extend(delivery_steps)
+        self.total_cost += 0.0
+        delivery_time_steps += 3
+        print(f"   Tempo de Entrega (Endereço + Pausa): {delivery_time_steps} passos")
         
         # FASE 3: Volta para base
         print("   FASE 3: Voltando para base (UCS)...")
+        # ⚡️ NOVO BLOCO DE CARREGAMENTO EXPLÍCITO APÓS A ENTREGA
+        if current_position in self.env.charging_stations:
+            # Assumimos que a taxa de carregamento é de +20 (conforme o seu código anterior),
+            # mas o drone carrega durante a pausa da entrega.
+            charge_amount = 100.0 
+            current_battery = min(self.env.agent_dict[agent_name]["max_battery"], current_battery + charge_amount)
+            
+            # Atualiza o estado da bateria no dicionário do agente (importante para logs futuros)
+            self.env.agent_dict[agent_name]["battery"] = current_battery 
+            
+            print(f"   ⚡ CARREGAMENTO NO DESTINO CONCLUÍDO. Bateria atualizada: {current_battery:.1f}%")
+        # ⚡️ FIM DO NOVO BLOCO
         home_base = self.agent_dict[agent_name]["home_base"]
-        inbound_path = self.find_path_ucs(current_position, home_base, current_battery, agent_name)
+        result = self.find_path_ucs(current_position, home_base, current_battery, agent_name)
         
-        if not inbound_path:
+        if not result:
             print("   ❌ UCS: Não foi possível planejar volta para base")
             return []
+            
+        inbound_path, inbound_cost, nodes_exp_in = result
+        self.total_cost += inbound_cost
+        self.total_nodes_explored += nodes_exp_in
         
         mission_path.extend(inbound_path[1:])
         current_position = home_base
@@ -72,12 +113,13 @@ class UCS:
         print("   FASE 4: Repousando na base...")
         rest_steps = [current_position] * 5
         mission_path.extend(rest_steps)
+        self.total_cost += 0.0
         
         return mission_path
 
-    def find_path_ucs(self, start, goal, initial_battery, agent_name):
-        """Encontra caminho com UCS (Busca de Custo Uniforme)"""
+    def find_path_ucs(self, start, goal, initial_battery, agent_name, ignore_battery=False):
         frontier = []
+        # Item: (custo_g, posição, bateria)
         heapq.heappush(frontier, (0, start, initial_battery))
         came_from = {(start, initial_battery): None}
         cost_so_far = {(start, initial_battery): 0}
@@ -86,29 +128,33 @@ class UCS:
         
         while frontier:
             current_cost, current, current_battery = heapq.heappop(frontier)
-            nodes_explored += 1
+            nodes_explored += 1 # Contagem de nós expandidos
             
             if current == goal:
                 # Reconstruir caminho
                 path = []
                 state = (current, current_battery)
+                final_cost = cost_so_far.get(state, float('inf'))
+                
                 while state in came_from and came_from[state] is not None:
                     pos, bat = state
                     path.append(pos)
                     state = came_from[state]
                 path.append(start)
                 path.reverse()
-                return path
+                
+                return path, final_cost, nodes_explored # Retorna o caminho, custo final e nós explorados
             
             neighbors = self.env.get_neighbors(current, current_battery)
             
             for neighbor in neighbors:
                 move_cost = self.env.calculate_move_cost(current, neighbor, current_battery)
                 new_battery = current_battery - move_cost
+                #new_battery = 100.0
                 
-                # Recarregar se passar por base
                 if neighbor in self.env.charging_stations:
-                    new_battery = min(100.0, new_battery + 20)
+                    #new_battery = min(100.0, new_battery + 20)
+                    new_battery = 100.0 # Carrega completamente
                 
                 new_cost = cost_so_far[(current, current_battery)] + move_cost
                 new_state = (neighbor, new_battery)
@@ -119,4 +165,4 @@ class UCS:
                     heapq.heappush(frontier, (priority, neighbor, new_battery))
                     came_from[new_state] = (current, current_battery)
         
-        return []
+        return None

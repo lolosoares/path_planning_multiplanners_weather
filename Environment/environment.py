@@ -17,6 +17,12 @@ class Environment:
         # Pontos importantes
         self.charging_stations = self.find_charging_stations()
         self.delivery_points = self.find_delivery_points()
+        self.charging_stations.update({
+            pos:{"type":"delivery_and_charge", "charge_rate":100.0}
+            for pos in self.delivery_points.keys()
+        })
+        print(f"🔋 Bases de carregamento (Incluindo Entregas): {list(self.charging_stations.keys())}")
+        
         self.home_base = tuple(start)  # Base inicial
         
         self.agent_dict = {
@@ -54,7 +60,7 @@ class Environment:
             wind_cells = random.sample(potential_wind_areas, num_wind_areas)
             for x, y in wind_cells:
                 grid_copy[y][x] = "W"
-                print(f"   ✅ Adicionado W em ({x}, {y})")
+                print(f"    Adicionado W em ({x}, {y})")
         
         return grid_copy
 
@@ -156,7 +162,7 @@ class Environment:
     def is_at_home_base(self, state):
         return state == self.home_base
 
-    def get_neighbors(self, state, current_battery=100.0):
+    def get_neighbors(self, state, current_battery=100.0, ignore_battery=False):
         """Vizinhos considerando bateria"""
         (x, y) = state
         moves = [(1,0), (-1,0), (0,1), (0,-1)]
@@ -176,7 +182,7 @@ class Environment:
                         continue
                 
                 move_cost = self.calculate_move_cost(state, (nx, ny), current_battery)
-                if move_cost <= current_battery:
+                if ignore_battery or move_cost <= current_battery:
                     neighbors.append((nx, ny))
                 
         return neighbors

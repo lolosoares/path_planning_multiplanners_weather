@@ -100,6 +100,46 @@ class MultiDroneAnimation:
             mission_states = {algo: "outbound" for algo in self.algorithms}
             action_states = {algo: "moving" for algo in self.algorithms}  # 🔥 NOVO: Estado de ação
             
+            #Desenhar caminho
+            for algo in self.algorithms:
+                if algo in drone_configs:
+                    config = drone_configs[algo]
+                    schedule = self.expanded_schedules[algo]
+                    
+                    # DEBUG: Verificar o que temos
+                    print(f"🔍 {algo}: {len(schedule)} passos no schedule expandido")
+                    
+                    # 🎨 DESENHAR LINHA DA TRAJETÓRIA
+                    if len(schedule) > 1:
+                        # Filtrar apenas posições únicas (sem repetições de pausa)
+                        unique_positions = []
+                        last_pos = None
+                        
+                        for step in schedule:
+                            current_pos = (step["x"], step["y"])
+                            if current_pos != last_pos:
+                                unique_positions.append(current_pos)
+                                last_pos = current_pos
+                        
+                        if len(unique_positions) > 1:
+                            x_coords = [pos[0] for pos in unique_positions]
+                            y_coords = [pos[1] for pos in unique_positions]
+                            
+                            print(f"🎨 {algo}: Desenhando linha com {len(unique_positions)} pontos")
+                            
+                            # Desenhar a linha da trajetória
+                            line_style = 'solid' if algo == "A*" else 'dashed' if algo == "Custo Uniforme" else 'dotted'
+                            line_width = 3 if algo == "A*" else 2
+                            
+                            ax.plot(x_coords, y_coords, 
+                                linestyle=line_style,
+                                linewidth=line_width,
+                                alpha=0.7, 
+                                color=config["color"], 
+                                label=f"{algo}")
+                        else:
+                            print(f"⚠️ {algo}: Não há pontos suficientes para desenhar linha")
+            
             # Inicializar drones
             for algo in self.algorithms:
                 if algo in drone_configs:
@@ -115,7 +155,7 @@ class MultiDroneAnimation:
             max_steps = max(len(schedule) for schedule in self.expanded_schedules.values())
             
             if max_steps == 0:
-                ax.set_title("❌ Nenhum caminho encontrado")
+                ax.set_title("Nenhum caminho encontrado")
                 plt.show()
                 
                 print("Animação finalizada. Pressione ENTER para fechar a janela...")
@@ -132,7 +172,7 @@ class MultiDroneAnimation:
                 frames=max_steps, 
                 interval=600,
                 blit=True, 
-                repeat=False
+                repeat=True
             )
             
             ax.legend(loc='upper right', fontsize=10)
