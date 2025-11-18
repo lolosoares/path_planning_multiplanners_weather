@@ -60,7 +60,7 @@ Neste cenário, com voo em altura elevada e vento moderado, A* e UCS completaram
 
 **Visualização da Rota:**
 
-![Rota Cenário 2 - A_UCS](Teste_002_v.gif)
+![Rota Cenário 2 - A_UCS](./images-testes/Teste_002_v.gif)
 
 ---
 
@@ -120,7 +120,7 @@ Ambos A* e UCS concluíram a missão com sucesso em altura alta e sem vento. O A
 
 **Visualização da Rota:**
 
-![Rota Cenário 4 - A_UCS](Testee_#004-v.gif)
+![Rota Cenário 4 - A_UCS](./images-testes/Teste_004-v.gif)
 
 ---
 
@@ -180,7 +180,7 @@ A missão foi completada com sucesso por A* e UCS. O drone chegou ao ponto de en
 
 **Visualização da Rota:**
 
-![Rota Cenário 6 - A_UCS](Teste_#006.gif)
+![Rota Cenário 6 - A_UCS](./images-testes/Teste_006-v.gif)
 
 ---
 
@@ -241,6 +241,6 @@ Neste caso, A* e UCS completaram a missão com sucesso em altura baixa e sem ven
 
 **Visualização da Rota:**
 
-![Rota Cenário 8 - A_UCS](Teste_#008-v.gif)
+![Rota Cenário 8 - A_UCS](./images-testes/Teste_008-v.gif)
 
 ---
