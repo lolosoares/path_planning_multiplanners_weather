@@ -1,9 +1,13 @@
 import traceback
 import pandas as pd
 from ui.drone_ui import DroneControlUI
+#import sys
 
 def main():
     try:
+        # Força a codificação UTF-8 para a saída do console (Windows) #descomente a linha asseguir no windows
+        #sys.stdout.reconfigure(encoding='utf-8')
+        
         # Carregar mapa
         df = pd.read_excel("./pal/maputo-map.xlsx", header=None, engine="openpyxl")
         grid = df.astype(str).values.tolist()
